@@ -21,10 +21,21 @@ const fields = {
 async function startCamera() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment" },
+      video: {
+        facingMode: "environment",
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        focusMode: "continuous",
+      },
       audio: false,
     });
     video.srcObject = stream;
+
+    const [track] = stream.getVideoTracks();
+    const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+    if (capabilities.focusMode && capabilities.focusMode.includes("continuous")) {
+      track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
+    }
   } catch (err) {
     statusEl.textContent = "Камера недоступна: " + err.message + ". Используйте загрузку фото.";
   }

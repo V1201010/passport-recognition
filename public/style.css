@@ -41,6 +41,18 @@ video {
   object-fit: cover;
 }
 
+.mrz-guide {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  bottom: 8%;
+  height: 22%;
+  border: 2px dashed #fff;
+  border-radius: 6px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
 .controls {
   display: flex;
   gap: 8px;

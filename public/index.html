@@ -9,10 +9,11 @@
 <body>
   <main>
     <h1>Распознавание паспорта</h1>
-    <p class="hint">Наведите камеру на машиночитаемую зону (две строки внизу разворота паспорта) и сделайте снимок.</p>
+    <p class="hint">Поместите две строки машиночитаемой зоны (внизу разворота паспорта) в рамку и сделайте снимок.</p>
 
     <div class="camera-wrap">
       <video id="video" autoplay playsinline muted></video>
+      <div class="mrz-guide"></div>
       <canvas id="canvas" hidden></canvas>
     </div>
 
