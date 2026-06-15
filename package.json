@@ -1,0 +1,17 @@
+{
+  "name": "passport-recognition",
+  "version": "1.0.0",
+  "description": "Распознавание паспортов Узбекистана через камеру телефона с транслитерацией в русский (Yandex Vision OCR)",
+  "main": "server/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "multer": "^2.2.0",
+    "node-fetch": "^2.7.0"
+  }
+}

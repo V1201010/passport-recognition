@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Распознавание паспорта (Узбекистан)</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main>
+    <h1>Распознавание паспорта</h1>
+    <p class="hint">Наведите камеру на машиночитаемую зону (две строки внизу разворота паспорта) и сделайте снимок.</p>
+
+    <div class="camera-wrap">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="canvas" hidden></canvas>
+    </div>
+
+    <div class="controls">
+      <button id="captureBtn">Сделать снимок</button>
+      <label class="file-label">
+        или загрузить фото
+        <input type="file" id="fileInput" accept="image/*" capture="environment" hidden />
+      </label>
+    </div>
+
+    <div id="status" class="status"></div>
+
+    <section id="result" class="result" hidden>
+      <h2>Данные паспорта</h2>
+      <table>
+        <tr><th>Фамилия (латиница)</th><td id="surnameLatin"></td></tr>
+        <tr><th>Фамилия (рус.)</th><td id="surnameRu"></td></tr>
+        <tr><th>Имя (латиница)</th><td id="givenLatin"></td></tr>
+        <tr><th>Имя (рус.)</th><td id="givenRu"></td></tr>
+        <tr><th>Номер паспорта</th><td id="passportNumber"></td></tr>
+        <tr><th>Гражданство</th><td id="nationality"></td></tr>
+        <tr><th>Дата рождения</th><td id="birthDate"></td></tr>
+        <tr><th>Пол</th><td id="sex"></td></tr>
+        <tr><th>Срок действия</th><td id="expiryDate"></td></tr>
+        <tr><th>ПИНФЛ</th><td id="personalNumber"></td></tr>
+      </table>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
