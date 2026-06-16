@@ -81,6 +81,50 @@ app.post("/api/recognize", upload.single("image"), async (req, res) => {
   }
 });
 
+app.post("/api/scan-imei", upload.single("image"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "Файл изображения не получен" });
+    if (!process.env.YANDEX_API_KEY) return res.status(500).json({ error: "YANDEX_API_KEY не задан на сервере" });
+
+    const base64Content = req.file.buffer.toString("base64");
+
+    const ocrResponse = await fetch(YANDEX_OCR_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Api-Key ${process.env.YANDEX_API_KEY}`,
+        "Content-Type": "application/json",
+        ...(process.env.YANDEX_FOLDER_ID ? { "x-folder-id": process.env.YANDEX_FOLDER_ID } : {}),
+      },
+      body: JSON.stringify({
+        mimeType: req.file.mimetype === "image/png" ? "PNG" : "JPEG",
+        languageCodes: ["en"],
+        model: "page",
+        content: base64Content,
+      }),
+    });
+
+    if (!ocrResponse.ok) {
+      const errorText = await ocrResponse.text();
+      return res.status(502).json({ error: "Ошибка Yandex Vision OCR", details: errorText });
+    }
+
+    const ocrResult = await ocrResponse.json();
+    const fullText = ocrResult?.result?.textAnnotation?.fullText || "";
+
+    // IMEI: 15 цифр, может быть разделён дефисами (XX-XXXXXX-XXXXXX-X)
+    const imeiMatch = fullText.match(/\b(\d{2}-\d{6}-\d{6}-\d|\d{15})\b/);
+    const imei = imeiMatch ? imeiMatch[0].replace(/-/g, "") : null;
+
+    if (!imei) {
+      return res.json({ success: false, fullText, message: "IMEI не найден в распознанном тексте" });
+    }
+
+    res.json({ success: true, imei });
+  } catch (err) {
+    res.status(500).json({ error: "Внутренняя ошибка сервера", details: err.message });
+  }
+});
+
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`Сервер запущен: http://localhost:${port}`);
