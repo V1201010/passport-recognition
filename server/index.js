@@ -62,14 +62,20 @@ app.post("/api/recognize", upload.single("image"), async (req, res) => {
       return res.json({ success: false, fullText, message: "MRZ не найдена в распознанном тексте" });
     }
 
+    console.log("=== OCR fullText ===\n" + fullText + "\n===================");
+
     const viz = parseViz(fullText, mrz);
+
+    // Предпочитаем имя из VIZ (там нет артефакта слияния букв с кодом страны)
+    const vizSurname = viz.surnameRaw ? transliterateUzbekToRussian(viz.surnameRaw) : null;
+    const vizGivenNames = viz.givenNamesRaw ? transliterateUzbekToRussian(viz.givenNamesRaw) : null;
 
     res.json({
       success: true,
       mrz,
       translit: {
-        surname: transliterateUzbekToRussian(mrz.surname),
-        givenNames: transliterateUzbekToRussian(mrz.givenNames),
+        surname: vizSurname || transliterateUzbekToRussian(mrz.surname),
+        givenNames: vizGivenNames || transliterateUzbekToRussian(mrz.givenNames),
       },
       viz,
       fullText,

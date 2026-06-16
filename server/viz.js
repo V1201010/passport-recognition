@@ -1,5 +1,15 @@
 // Парсер визуальной зоны (VIZ) паспорта из OCR-текста.
-// Ищет дату выдачи и орган выдачи по названию поля, с запасным методом исключения для дат.
+// VIZ узбекского паспорта — только латиница (узбекский алфавит).
+
+const SURNAME_LABEL_PATTERNS = [
+  /familiyasi/i,
+  /surname/i,
+];
+
+const GIVEN_NAMES_LABEL_PATTERNS = [
+  /ismi/i,
+  /given[\s\S]{0,5}names/i,
+];
 
 const ISSUE_DATE_LABEL_PATTERNS = [
   /berilgan[\s\S]{0,8}sana/i,
@@ -9,8 +19,9 @@ const ISSUE_DATE_LABEL_PATTERNS = [
 
 const ISSUED_BY_LABEL_PATTERNS = [
   /berilgan[\s\S]{0,8}joy/i,
+  /tomonidan[\s\S]{0,8}berilgan/i,
+  /beruvchi[\s\S]{0,8}organ/i,
   /place[\s\S]{0,5}of[\s\S]{0,5}issue/i,
-  /lieu[\s\S]{0,5}de[\s\S]{0,5}d[eé]livrance/i,
   /место[\s\S]{0,8}выдач/i,
   /орган[\s\S]{0,8}выдач/i,
   /кем[\s\S]{0,5}выдан/i,
@@ -31,8 +42,28 @@ function firstTextLine(str) {
     .find(l => l.length > 2) || null;
 }
 
+// Извлекает латинское имя (заглавные буквы) после метки поля
+function extractLatinAfterLabel(fullText, labelPatterns) {
+  for (const labelPattern of labelPatterns) {
+    const labelMatch = fullText.match(labelPattern);
+    if (!labelMatch) continue;
+    const after = fullText.substring(
+      labelMatch.index + labelMatch[0].length,
+      labelMatch.index + labelMatch[0].length + 300
+    ).trim();
+    const lines = after.split('\n').map(l => l.trim()).filter(l => l.length > 1);
+    for (const line of lines.slice(0, 5)) {
+      // Ищем строку из латинских заглавных букв (имя в VIZ)
+      const latinMatch = line.match(/[A-Z]{2,}(?:[\s\-'][A-Z]{2,})*/);
+      if (latinMatch && !/^[A-Z]{2}$/.test(latinMatch[0])) { // исключаем двухбуквенные коды
+        return latinMatch[0].trim();
+      }
+    }
+  }
+  return null;
+}
+
 function extractIssueDateFromText(fullText, knownDates) {
-  // Primary: find by field label, then grab the nearest date within 150 chars after it
   for (const labelPattern of ISSUE_DATE_LABEL_PATTERNS) {
     const labelMatch = fullText.match(labelPattern);
     if (labelMatch) {
@@ -44,8 +75,7 @@ function extractIssueDateFromText(fullText, knownDates) {
       if (dateMatch) return normalizeDate(dateMatch[0]);
     }
   }
-
-  // Fallback: collect all dates, exclude birth date and expiry date
+  // Запасной метод: исключаем известные даты
   const allDates = [];
   let m;
   const re = new RegExp(DATE_RE_GLOBAL.source, 'g');
@@ -62,7 +92,7 @@ function extractIssuedByFromText(fullText) {
     const labelMatch = fullText.match(labelPattern);
     if (labelMatch) {
       const afterLabel = fullText
-        .substring(labelMatch.index + labelMatch[0].length, labelMatch.index + labelMatch[0].length + 250)
+        .substring(labelMatch.index + labelMatch[0].length, labelMatch.index + labelMatch[0].length + 300)
         .trim();
       const line = firstTextLine(afterLabel);
       if (line && line.length > 2) return line;
@@ -74,6 +104,8 @@ function extractIssuedByFromText(fullText) {
 function parseViz(fullText, mrzData) {
   const knownDates = mrzData ? [mrzData.birthDate, mrzData.expiryDate] : [];
   return {
+    surnameRaw: extractLatinAfterLabel(fullText, SURNAME_LABEL_PATTERNS),
+    givenNamesRaw: extractLatinAfterLabel(fullText, GIVEN_NAMES_LABEL_PATTERNS),
     issueDate: extractIssueDateFromText(fullText, knownDates),
     issuedBy: extractIssuedByFromText(fullText),
   };
