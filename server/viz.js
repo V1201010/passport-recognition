@@ -114,9 +114,28 @@ function extractAuthority(fullText, cfg) {
   return null;
 }
 
-// MRZ — первичный источник для ФИО. VIZ — только резерв если MRZ пустой.
+// MRZ — первичный источник. VIZ — резерв если MRZ пустой.
 function pickBetter(mrzValue, vizValue) {
   return mrzValue || vizValue;
+}
+
+// Для фамилии: дополнительно проверяем B-drop артефакт.
+// OCR сливает одинаковые буквы на стыке страна+фамилия: UZB+BUKHOROV → UZBUKHOROV.
+// Признак: последняя буква кода страны == первая буква VIZ фамилии != первая буква MRZ фамилии.
+function pickBetterSurname(mrzValue, vizValue, countryCode) {
+  if (!mrzValue) return vizValue;
+  if (!vizValue) return mrzValue;
+
+  const lastCountryChar = (countryCode || '').slice(-1).toUpperCase();
+  if (lastCountryChar) {
+    const mrzFirst = mrzValue.toUpperCase().trim()[0];
+    const vizFirst = vizValue.toUpperCase().trim()[0];
+    if (lastCountryChar === vizFirst && lastCountryChar !== mrzFirst) {
+      return vizValue; // B-drop: фамилия из VIZ
+    }
+  }
+
+  return mrzValue;
 }
 
 function parseViz(fullText, mrzData, translitFn) {
@@ -132,7 +151,7 @@ function parseViz(fullText, mrzData, translitFn) {
   // Транслитерируем оба источника и сравниваем
   const mrzSurname = mrzData?.surname ? translitFn(mrzData.surname) : null;
   const vizSurname = vizSurnameRaw ? translitFn(vizSurnameRaw) : null;
-  const surname = pickBetter(mrzSurname, vizSurname);
+  const surname = pickBetterSurname(mrzSurname, vizSurname, country);
 
   const mrzGivenNames = mrzData?.givenNames ? translitFn(mrzData.givenNames) : null;
   const vizGivenNames = vizFullGivenRaw ? translitFn(vizFullGivenRaw) : null;
