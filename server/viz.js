@@ -77,6 +77,7 @@ function extractNameAfterLabel(fullText, labelPattern, cyrillic) {
   if (!after) return null;
   const lines = after.split('\n').map(l => l.trim()).filter(l => l.length > 1);
   for (const line of lines.slice(0, 5)) {
+    if (line.includes('/') || line.includes('|')) continue; // пропускаем строки-лейблы типа "ISMI / GIVEN NAMES"
     const name = cyrillic ? extractCyrillicName(line) : extractLatinName(line);
     if (name) return name;
   }
