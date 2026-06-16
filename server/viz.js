@@ -67,9 +67,13 @@ function extractLatinName(text) {
 }
 
 function extractCyrillicName(text) {
-  // Ѐ-ӿ covers full Cyrillic block incl. Tajik Ғ (U+0492), Ҳ (U+04B2) etc.
+  // [Ѐ-ӿ] covers full Cyrillic block incl. Tajik Ғ (U+0492), Ҳ (U+04B2) etc.
+  // toUpperCase() guard: passport names are ALL CAPS; rejects label words like "Фамилия", "Берилген күнү".
   const m = text.match(/[Ѐ-ӿ]{2,}(?:[\s\-][Ѐ-ӿ]{2,})*/);
-  return m ? m[0].trim() : null;
+  if (!m) return null;
+  const result = m[0].trim();
+  if (result.toUpperCase() !== result) return null;
+  return result;
 }
 
 function extractNameAfterLabel(fullText, labelPattern, cyrillic) {
