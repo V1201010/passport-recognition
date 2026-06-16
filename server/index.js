@@ -70,8 +70,8 @@ app.post("/api/recognize", upload.single("image"), async (req, res) => {
       success: true,
       mrz,
       translit: {
-        surname: viz.surname?.value || transliterateUzbekToRussian(mrz.surname),
-        givenNames: viz.givenNames || transliterateUzbekToRussian(mrz.givenNames),
+        surname: viz.surname,
+        givenNames: viz.givenNames,
       },
       viz,
       fullText,
