@@ -13,44 +13,50 @@ function normalizeDate(raw) {
 // Страно-специфичные конфиги меток VIZ
 const COUNTRY_CONFIG = {
   UZB: {
-    surname:     /familiyasi\s*[\/|]\s*surname/i,
-    givenNames:  /ismi\s*[\/|]\s*given\s*names/i,
-    fathersName: /otasining\s*ismi\s*[\/|]\s*father['']?s?\s*name/i,
-    dob:         /tug['']?ilgan\s*sanasi\s*[\/|]\s*date\s*of\s*birth/i,
-    doi:         /berilgan\s*sanasi\s*[\/|]\s*date\s*of\s*issue/i,
-    authority:   /kim\s*tomonidan\s*berilgan\s*[\/|]\s*authority/i,
-    passportNo:  /pasport\s*raqami\s*[\/|]\s*passport\s*no/i,
-    cyrillic:    false,
+    // Метки допускают OCR-искажения (FAMELIYAS вместо FAMILIYASI и т.п.)
+    surname:         /famil\S*\s*[\/|]\s*surname|surname/i,
+    givenNames:      /ism\S*\s*[\/|]\s*given\s*names|given\s*names/i,
+    fathersName:     /otasining|father['']?s?\s*name/i,
+    dob:             /tug\S*\s*[\/|]\s*date\s*of\s*birth|date\s*of\s*birth/i,
+    doi:             /berilgan\s*sanasi\s*[\/|]\s*date\s*of\s*issue|date\s*of\s*issue/i,
+    authority:       /kim\s*tomonidan|authority/i,
+    // Прямой паттерн кода органа — не зависит от метки
+    authorityCode:   /MIA\s+\d+/i,
+    passportNo:      /pasport\s*raqami|passport\s*no/i,
+    cyrillic:        false,
   },
   TJK: {
-    surname:     /фамили[яи]/i,
-    givenNames:  /имя\s*[,/|]?\s*отчество|имена/i,
-    fathersName: /отчество/i,
-    dob:         /дата\s*рождени/i,
-    doi:         /дата\s*выдач/i,
-    authority:   /место\s*выдач|орган\s*выдач|кем\s*выдан/i,
-    passportNo:  /серия\s*и\s*номер|№\s*паспорта|номер\s*паспорта/i,
-    cyrillic:    true,
+    surname:         /фамили[яи]/i,
+    givenNames:      /имя\s*[,/|]?\s*отчество|имена/i,
+    fathersName:     /отчество/i,
+    dob:             /дата\s*рождени/i,
+    doi:             /дата\s*выдач/i,
+    authority:       /место\s*выдач|орган\s*выдач|кем\s*выдан/i,
+    authorityCode:   null,
+    passportNo:      /серия\s*и\s*номер|№\s*паспорта|номер\s*паспорта/i,
+    cyrillic:        true,
   },
   KGZ: {
-    surname:     /фамилияс[ыи]|фамили[яи]|surname/i,
-    givenNames:  /аты[,\s]+атасынын\s*аты|имя\s+отчество|given\s+names/i,
-    fathersName: /атасынын\s*аты|отчество/i,
-    dob:         /туулган\s*күнү|дата\s*рождени|date\s*of\s*birth/i,
-    doi:         /берилген\s*күнү|дата\s*выдачи|date\s*of\s*issue/i,
-    authority:   /берген\s*мекеме|орган\s*выдачи|authority/i,
-    passportNo:  /паспортун\s*№|passport\s*no/i,
-    cyrillic:    true,
+    surname:         /фамилияс[ыи]|фамили[яи]|surname/i,
+    givenNames:      /аты[,\s]+атасынын\s*аты|имя\s+отчество|given\s+names/i,
+    fathersName:     /атасынын\s*аты|отчество/i,
+    dob:             /туулган\s*күнү|дата\s*рождени|date\s*of\s*birth/i,
+    doi:             /берилген\s*күнү|дата\s*выдачи|date\s*of\s*issue/i,
+    authority:       /берген\s*мекеме|орган\s*выдачи|authority/i,
+    authorityCode:   /MDD\s+\d+|ОМД\s+\d+|ДМД\s+\d+/i,
+    passportNo:      /паспортун\s*№|passport\s*no/i,
+    cyrillic:        true,
   },
   TKM: {
-    surname:     /famil[iý]asy\s*[\/|]\s*surname/i,
-    givenNames:  /ady\s*[\/|]\s*given\s*name/i,
-    fathersName: null,
-    dob:         /doglan\s*senesi\s*[\/|]\s*date\s*of\s*birth/i,
-    doi:         /berlen\s*senesi\s*[\/|]\s*date\s*of\s*issue/i,
-    authority:   /pasyport\s*beren\s*edara\s*[\/|]\s*authority/i,
-    passportNo:  /pasport\s*no\b|passport\s*no\b/i,
-    cyrillic:    false,
+    surname:         /famil[iý]asy\s*[\/|]\s*surname|surname/i,
+    givenNames:      /ady\s*[\/|]\s*given\s*name|given\s*name/i,
+    fathersName:     null,
+    dob:             /doglan\s*senesi\s*[\/|]\s*date\s*of\s*birth|date\s*of\s*birth/i,
+    doi:             /berlen\s*senesi\s*[\/|]\s*date\s*of\s*issue|date\s*of\s*issue/i,
+    authority:       /pasyport\s*beren\s*edara\s*[\/|]\s*authority|authority/i,
+    authorityCode:   /SMST\d*/i,
+    passportNo:      /pasport\s*no\b|passport\s*no\b/i,
+    cyrillic:        false,
   },
 };
 
@@ -142,6 +148,34 @@ function reconcileSurname(mrzSurname, vizSurnameRaw, issuingCountry, translitFn)
   return { value: vizTranslit, source: 'viz', mrzValue: mrzSurname };
 }
 
+function extractAuthorityFromViz(fullText, cfg) {
+  if (!cfg) return null;
+
+  // 1. Метка + поиск кода в радиусе 400 символов
+  if (cfg.authority) {
+    const labelMatch = fullText.match(cfg.authority);
+    if (labelMatch) {
+      const window = fullText.substring(labelMatch.index, labelMatch.index + 400);
+      if (cfg.authorityCode) {
+        const codeMatch = window.match(cfg.authorityCode);
+        if (codeMatch) return codeMatch[0].trim();
+      }
+      // Нет прямого кода — берём первую текстовую строку после метки
+      const after = fullText.substring(labelMatch.index + labelMatch[0].length, labelMatch.index + 300).trim();
+      const line = firstLine(after);
+      if (line && line.length > 2) return line;
+    }
+  }
+
+  // 2. Прямой поиск кода органа в тексте (если метка не найдена)
+  if (cfg.authorityCode) {
+    const m = fullText.match(cfg.authorityCode);
+    if (m) return m[0].trim();
+  }
+
+  return null;
+}
+
 function parseViz(fullText, mrzData, translitFn) {
   const country = (mrzData?.issuingCountry || '').toUpperCase();
   const cfg = COUNTRY_CONFIG[country];
@@ -162,9 +196,9 @@ function parseViz(fullText, mrzData, translitFn) {
     ? extractDate(fullText, cfg.doi) || tryPatterns(fullText, FALLBACK.doi, extractDate)
     : tryPatterns(fullText, FALLBACK.doi, extractDate);
 
-  // Кем выдан
+  // Кем выдан — сначала ищем код органа рядом с меткой, потом напрямую в тексте
   const issuedBy = cfg
-    ? extractText(fullText, cfg.authority) || tryPatterns(fullText, FALLBACK.authority, extractText)
+    ? extractAuthorityFromViz(fullText, cfg) || tryPatterns(fullText, FALLBACK.authority, extractText)
     : tryPatterns(fullText, FALLBACK.authority, extractText);
 
   // Дата рождения из VIZ (для кросс-проверки)
