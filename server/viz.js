@@ -148,13 +148,21 @@ function parseViz(fullText, mrzData, translitFn) {
   const vizFathersNameRaw = extractNameAfterLabel(fullText, cfg?.fathersName, cfg?.cyrillic);
   const vizFullGivenRaw = [vizGivenNamesRaw, vizFathersNameRaw].filter(Boolean).join(' ') || null;
 
-  // B-drop проверка на сырых латинских строках (до транслитерации)
-  const rawSurname = pickBetterSurname(mrzData?.surname || null, vizSurnameRaw || null, country);
-  const surname = rawSurname ? translitFn(rawSurname) : null;
+  let surname, givenNames;
 
-  const mrzGivenNames = mrzData?.givenNames ? translitFn(mrzData.givenNames) : null;
-  const vizGivenNames = vizFullGivenRaw ? translitFn(vizFullGivenRaw) : null;
-  const givenNames = pickBetter(mrzGivenNames, vizGivenNames);
+  if (cfg?.cyrillic) {
+    // KGZ, TJK: VIZ уже в кириллице — используем напрямую без транслитерации.
+    // Транслитерация MRZ — только резерв если VIZ не нашёл имена.
+    surname = vizSurnameRaw || (mrzData?.surname ? translitFn(mrzData.surname) : null);
+    givenNames = vizFullGivenRaw || (mrzData?.givenNames ? translitFn(mrzData.givenNames) : null);
+  } else {
+    // UZB, TKM: оба источника в латинице, транслитерируем + B-drop детектор для фамилии
+    const rawSurname = pickBetterSurname(mrzData?.surname || null, vizSurnameRaw || null, country);
+    surname = rawSurname ? translitFn(rawSurname) : null;
+    const mrzGivenNames = mrzData?.givenNames ? translitFn(mrzData.givenNames) : null;
+    const vizGivenNames = vizFullGivenRaw ? translitFn(vizFullGivenRaw) : null;
+    givenNames = pickBetter(mrzGivenNames, vizGivenNames);
+  }
 
   // --- Дата выдачи: только VIZ ---
   let issueDate = extractDateAfterLabel(fullText, cfg?.doi);
