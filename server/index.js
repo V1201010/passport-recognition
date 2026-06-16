@@ -11,6 +11,14 @@ const upload = multer({ limits: { fileSize: 10 * 1024 * 1024 } });
 
 const YANDEX_OCR_URL = "https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText";
 
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.sendStatus(200);
+  next();
+});
+
 app.use(express.static(path.join(__dirname, "..", "public")));
 
 app.post("/api/recognize", upload.single("image"), async (req, res) => {
