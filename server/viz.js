@@ -113,30 +113,15 @@ function extractAuthority(fullText, cfg) {
   return null;
 }
 
-// Выбирает лучшее значение между MRZ и VIZ.
-// MRZ — первичный источник. VIZ используется только для исправления
-// артефакта слияния букв (B-drop) и как запасной при отсутствии MRZ.
-function pickBetter(mrzValue, vizValue, issuingCountry) {
+// Сравниваем MRZ и VIZ: если совпали — берём MRZ, если нет — VIZ.
+// MRZ парсится точно по позициям (страна всегда 3 символа),
+// поэтому любое расхождение означает OCR-артефакт в MRZ.
+function pickBetter(mrzValue, vizValue) {
   if (!vizValue) return mrzValue;
   if (!mrzValue) return vizValue;
-
-  const mrz = mrzValue.toUpperCase().trim();
-  const viz = vizValue.toUpperCase().trim();
-
-  if (mrz === viz) return mrzValue;
-
-  // B-drop: последняя буква кода страны = первая буква в VIZ, MRZ потерял её
-  const lastCountryChar = (issuingCountry || '').slice(-1).toUpperCase();
-  if (
-    lastCountryChar &&
-    viz.startsWith(lastCountryChar) &&
-    viz.slice(1) === mrz
-  ) {
-    return vizValue; // исправляем выпавшую букву
-  }
-
-  // Иначе доверяем MRZ (данные верифицированы контрольными цифрами на уровне строки)
-  return mrzValue;
+  return mrzValue.toUpperCase().trim() === vizValue.toUpperCase().trim()
+    ? mrzValue
+    : vizValue;
 }
 
 function parseViz(fullText, mrzData, translitFn) {
@@ -149,33 +134,14 @@ function parseViz(fullText, mrzData, translitFn) {
   const vizFathersNameRaw = extractNameAfterLabel(fullText, cfg?.fathersName, cfg?.cyrillic);
   const vizFullGivenRaw = [vizGivenNamesRaw, vizFathersNameRaw].filter(Boolean).join(' ') || null;
 
-  // B-drop проверка на сырых латинских значениях (до транслитерации)
-  const lastCountryChar = country.slice(-1).toUpperCase();
-  const mrzSurnameRaw = (mrzData?.surname || '').toUpperCase().trim();
-  const vizSurnameRawUp = (vizSurnameRaw || '').toUpperCase().trim();
+  // Транслитерируем оба источника и сравниваем
+  const mrzSurname = mrzData?.surname ? translitFn(mrzData.surname) : null;
+  const vizSurname = vizSurnameRaw ? translitFn(vizSurnameRaw) : null;
+  const surname = pickBetter(mrzSurname, vizSurname);
 
-  let surnameRawToUse;
-  if (
-    lastCountryChar &&
-    vizSurnameRawUp &&
-    mrzSurnameRaw &&
-    vizSurnameRawUp.startsWith(lastCountryChar) &&
-    vizSurnameRawUp.slice(1) === mrzSurnameRaw
-  ) {
-    // B-drop: OCR слил две одинаковые буквы, берём VIZ
-    surnameRawToUse = vizSurnameRaw;
-  } else {
-    // MRZ первичный; VIZ только если MRZ пустой
-    surnameRawToUse = mrzData?.surname || vizSurnameRaw;
-  }
-
-  const surname = surnameRawToUse ? translitFn(surnameRawToUse) : null;
-
-  // Имя + отчество: MRZ первичный, VIZ запасной
-  const mrzGivenRaw = mrzData?.givenNames || null;
-  const givenNames = (mrzGivenRaw || vizFullGivenRaw)
-    ? translitFn(mrzGivenRaw || vizFullGivenRaw)
-    : null;
+  const mrzGivenNames = mrzData?.givenNames ? translitFn(mrzData.givenNames) : null;
+  const vizGivenNames = vizFullGivenRaw ? translitFn(vizFullGivenRaw) : null;
+  const givenNames = pickBetter(mrzGivenNames, vizGivenNames);
 
   // --- Дата выдачи: только VIZ ---
   let issueDate = extractDateAfterLabel(fullText, cfg?.doi);
