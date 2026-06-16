@@ -20,8 +20,8 @@ const COUNTRY_CONFIG = {
     dob:             /tug\S*\s*[\/|]\s*date\s*of\s*birth|date\s*of\s*birth/i,
     doi:             /berilgan\s*sanasi\s*[\/|]\s*date\s*of\s*issue|date\s*of\s*issue/i,
     authority:       /kim\s*tomonidan|authority/i,
-    // Прямой паттерн кода органа — не зависит от метки
-    authorityCode:   /MIA\s+\d+/i,
+    // Прямой паттерн кода органа — MIA (МВД) или PSC (паспортный сервисный центр)
+    authorityCode:   /(?:MIA|PSC)\s+\d+/i,
     passportNo:      /pasport\s*raqami|passport\s*no/i,
     cyrillic:        false,
   },
