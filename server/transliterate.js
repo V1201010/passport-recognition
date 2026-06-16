@@ -22,6 +22,7 @@ const SINGLE_CHAR_RULES = {
   p: "п", q: "к", r: "р", s: "с", t: "т", u: "у", v: "в",
   x: "х", y: "й", z: "з",
   "'": "ъ", "ʻ": "ъ", "ʼ": "ъ", "`": "ъ",
+  "ғ": "г",
 };
 
 function applyCase(sample, replacement) {
