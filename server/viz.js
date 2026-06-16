@@ -186,10 +186,18 @@ function parseViz(fullText, mrzData, translitFn) {
     ? extractName(fullText, cfg.surname, cfg.cyrillic)
     : tryPatterns(fullText, FALLBACK.surname, (t, p) => extractName(t, p, false));
 
-  // Имя + отчество
+  // Имя
   const givenNamesRaw = cfg
     ? extractName(fullText, cfg.givenNames, cfg.cyrillic)
     : tryPatterns(fullText, FALLBACK.givenNames, (t, p) => extractName(t, p, false));
+
+  // Отчество (отдельное поле в VIZ узбекских паспортов)
+  const fathersNameRaw = cfg?.fathersName
+    ? extractName(fullText, cfg.fathersName, cfg.cyrillic)
+    : null;
+
+  // Объединяем имя + отчество в одну строку (как в MRZ)
+  const fullGivenNamesRaw = [givenNamesRaw, fathersNameRaw].filter(Boolean).join(' ') || null;
 
   // Дата выдачи
   const issueDate = cfg
@@ -237,8 +245,9 @@ function parseViz(fullText, mrzData, translitFn) {
   return {
     surnameRaw,
     surname: surnameResult,
-    givenNamesRaw,
-    givenNames: givenNamesRaw ? translitFn(givenNamesRaw) : null,
+    givenNamesRaw: fullGivenNamesRaw,
+    fathersNameRaw,
+    givenNames: fullGivenNamesRaw ? translitFn(fullGivenNamesRaw) : null,
     issueDate: issueDateFinal,
     issuedBy,
     dobViz,
