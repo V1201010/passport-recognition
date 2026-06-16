@@ -5,6 +5,7 @@ const multer = require("multer");
 const fetch = require("node-fetch");
 const { parseMrz } = require("./mrz");
 const { transliterateUzbekToRussian } = require("./transliterate");
+const { parseViz } = require("./viz");
 
 const app = express();
 const upload = multer({ limits: { fileSize: 10 * 1024 * 1024 } });
@@ -61,6 +62,8 @@ app.post("/api/recognize", upload.single("image"), async (req, res) => {
       return res.json({ success: false, fullText, message: "MRZ не найдена в распознанном тексте" });
     }
 
+    const viz = parseViz(fullText, mrz);
+
     res.json({
       success: true,
       mrz,
@@ -68,6 +71,7 @@ app.post("/api/recognize", upload.single("image"), async (req, res) => {
         surname: transliterateUzbekToRussian(mrz.surname),
         givenNames: transliterateUzbekToRussian(mrz.givenNames),
       },
+      viz,
       fullText,
     });
   } catch (err) {
