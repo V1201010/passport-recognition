@@ -33,12 +33,12 @@ const COUNTRY_CONFIG = {
     cyrillic:      false,
   },
   TJK: {
-    surname:       /фамили[яи]/i,
-    givenNames:    /имя\s*[,\/|]?\s*отчество|имена/i,
+    surname:       /насаб|surname/i,  // над Latin BOBOEV идёт Cyrillic БОБОЕВ
+    givenNames:    null,              // извлекаем специальной логикой ниже в parseViz
     fathersName:   null,
-    doi:           /дата\s*выдач/i,
-    authorityCode: null,
-    authority:     /место\s*выдач|орган\s*выдач|кем\s*выдан/i,
+    doi:           /отози|date\s*of\s*issue|дата\s*выдач/i,
+    authorityCode: /embassy\s+in\s+russia|сафорат[аи]?\s+чт|посольств/i,
+    authority:     /ташкилот|authority\b|место\s*выдач|орган\s*выдач|кем\s*выдан/i,
     cyrillic:      true,
   },
   KGZ: {
@@ -67,7 +67,8 @@ function extractLatinName(text) {
 }
 
 function extractCyrillicName(text) {
-  const m = text.match(/[А-ЯЁ]{2,}(?:[\s\-][А-ЯЁ]{2,})*/);
+  // Ѐ-ӿ covers full Cyrillic block incl. Tajik Ғ (U+0492), Ҳ (U+04B2) etc.
+  const m = text.match(/[Ѐ-ӿ]{2,}(?:[\s\-][Ѐ-ӿ]{2,})*/);
   return m ? m[0].trim() : null;
 }
 
@@ -150,7 +151,22 @@ function parseViz(fullText, mrzData, translitFn) {
   const vizSurnameRaw = extractNameAfterLabel(fullText, cfg?.surname, cfg?.cyrillic);
   const vizGivenNamesRaw = extractNameAfterLabel(fullText, cfg?.givenNames, cfg?.cyrillic);
   const vizFathersNameRaw = extractNameAfterLabel(fullText, cfg?.fathersName, cfg?.cyrillic);
-  const vizFullGivenRaw = [vizGivenNamesRaw, vizFathersNameRaw].filter(Boolean).join(' ') || null;
+  let vizFullGivenRaw = [vizGivenNamesRaw, vizFathersNameRaw].filter(Boolean).join(' ') || null;
+
+  // TJK: Кириллические имя+отчество ("УЛУҒБЕК ТОШПУЛАТОВИЧ") стоят над Latin транскрипцией ("ULUGHBEK").
+  // Ищем Cyrillic-строку в 3 строках перед первым Latin-именем из MRZ.
+  if (country === 'TJK' && !vizFullGivenRaw && mrzData?.givenNames) {
+    const firstGiven = mrzData.givenNames.split(' ')[0];
+    const idx = fullText.toUpperCase().indexOf(firstGiven.toUpperCase());
+    if (idx >= 0) {
+      const beforeLines = fullText.substring(0, idx).split('\n')
+        .map(l => l.trim()).filter(l => l.length > 1);
+      for (let i = beforeLines.length - 1; i >= Math.max(0, beforeLines.length - 4); i--) {
+        const name = extractCyrillicName(beforeLines[i]);
+        if (name && name.length > 3) { vizFullGivenRaw = name; break; }
+      }
+    }
+  }
 
   let surname, givenNames;
 
