@@ -1,113 +1,215 @@
-// Парсер визуальной зоны (VIZ) паспорта из OCR-текста.
-// VIZ узбекского паспорта — только латиница (узбекский алфавит).
+// Парсер визуальной зоны (VIZ) паспорта.
+// Поддерживает UZB, TJK, KGZ, TKM с кросс-проверкой данных MRZ и VIZ.
 
-const SURNAME_LABEL_PATTERNS = [
-  /familiyasi/i,
-  /surname/i,
-];
-
-const GIVEN_NAMES_LABEL_PATTERNS = [
-  /ismi/i,
-  /given[\s\S]{0,5}names/i,
-];
-
-const ISSUE_DATE_LABEL_PATTERNS = [
-  /berilgan[\s\S]{0,8}sana/i,
-  /date[\s\S]{0,5}of[\s\S]{0,5}issue/i,
-  /дата[\s\S]{0,8}выдач/i,
-];
-
-const ISSUED_BY_LABEL_PATTERNS = [
-  /berilgan[\s\S]{0,8}joy/i,
-  /tomonidan[\s\S]{0,8}berilgan/i,
-  /beruvchi[\s\S]{0,8}organ/i,
-  /place[\s\S]{0,5}of[\s\S]{0,5}issue/i,
-  /место[\s\S]{0,8}выдач/i,
-  /орган[\s\S]{0,8}выдач/i,
-  /кем[\s\S]{0,5}выдан/i,
-];
-
-const DATE_RE = /\b(\d{2})[.\-](\d{2})[.\-](\d{4})\b/;
-const DATE_RE_GLOBAL = /\b(\d{2})[.\-](\d{2})[.\-](\d{4})\b/g;
+// Дата: DD.MM.YYYY или DD MM YYYY
+const DATE_RE = /\b(\d{2})[.\s](\d{2})[.\s](\d{4})\b/;
+const DATE_RE_G = /\b(\d{2})[.\s](\d{2})[.\s](\d{4})\b/g;
 
 function normalizeDate(raw) {
   const m = raw.match(DATE_RE);
   return m ? `${m[1]}.${m[2]}.${m[3]}` : null;
 }
 
-function firstTextLine(str) {
-  return (str || '')
-    .split('\n')
-    .map(l => l.trim())
-    .find(l => l.length > 2) || null;
+// Страно-специфичные конфиги меток VIZ
+const COUNTRY_CONFIG = {
+  UZB: {
+    surname:     /familiyasi\s*[\/|]\s*surname/i,
+    givenNames:  /ismi\s*[\/|]\s*given\s*names/i,
+    fathersName: /otasining\s*ismi\s*[\/|]\s*father['']?s?\s*name/i,
+    dob:         /tug['']?ilgan\s*sanasi\s*[\/|]\s*date\s*of\s*birth/i,
+    doi:         /berilgan\s*sanasi\s*[\/|]\s*date\s*of\s*issue/i,
+    authority:   /kim\s*tomonidan\s*berilgan\s*[\/|]\s*authority/i,
+    passportNo:  /pasport\s*raqami\s*[\/|]\s*passport\s*no/i,
+    cyrillic:    false,
+  },
+  TJK: {
+    surname:     /фамили[яи]/i,
+    givenNames:  /имя\s*[,/|]?\s*отчество|имена/i,
+    fathersName: /отчество/i,
+    dob:         /дата\s*рождени/i,
+    doi:         /дата\s*выдач/i,
+    authority:   /место\s*выдач|орган\s*выдач|кем\s*выдан/i,
+    passportNo:  /серия\s*и\s*номер|№\s*паспорта|номер\s*паспорта/i,
+    cyrillic:    true,
+  },
+  KGZ: {
+    surname:     /фамилияс[ыи]|фамили[яи]|surname/i,
+    givenNames:  /аты[,\s]+атасынын\s*аты|имя\s+отчество|given\s+names/i,
+    fathersName: /атасынын\s*аты|отчество/i,
+    dob:         /туулган\s*күнү|дата\s*рождени|date\s*of\s*birth/i,
+    doi:         /берилген\s*күнү|дата\s*выдачи|date\s*of\s*issue/i,
+    authority:   /берген\s*мекеме|орган\s*выдачи|authority/i,
+    passportNo:  /паспортун\s*№|passport\s*no/i,
+    cyrillic:    true,
+  },
+  TKM: {
+    surname:     /famil[iý]asy\s*[\/|]\s*surname/i,
+    givenNames:  /ady\s*[\/|]\s*given\s*name/i,
+    fathersName: null,
+    dob:         /doglan\s*senesi\s*[\/|]\s*date\s*of\s*birth/i,
+    doi:         /berlen\s*senesi\s*[\/|]\s*date\s*of\s*issue/i,
+    authority:   /pasyport\s*beren\s*edara\s*[\/|]\s*authority/i,
+    passportNo:  /pasport\s*no\b|passport\s*no\b/i,
+    cyrillic:    false,
+  },
+};
+
+// Общие запасные метки (если страна не определена или метка не нашлась)
+const FALLBACK = {
+  surname:    [/surname/i, /фамили[яи]/i, /familiyasi/i, /famil[iý]asy/i],
+  givenNames: [/given\s*names/i, /имена|имя/i, /ismi/i],
+  dob:        [/date\s*of\s*birth/i, /дата\s*рождени/i],
+  doi:        [/date\s*of\s*issue/i, /дата\s*выдач/i, /berilgan\s*sana/i, /berlen\s*senesi/i, /берилген\s*күнү/i],
+  authority:  [/authority/i, /орган\s*выдач/i, /кем\s*выдан/i, /место\s*выдач/i],
+  passportNo: [/passport\s*no/i, /паспортун\s*№/i, /pasport\s*raqami/i],
+};
+
+function afterLabel(fullText, pattern, windowSize = 200) {
+  const m = fullText.match(pattern);
+  if (!m) return null;
+  return fullText.substring(m.index + m[0].length, m.index + m[0].length + windowSize).trim();
 }
 
-// Извлекает латинское имя (заглавные буквы) после метки поля
-function extractLatinAfterLabel(fullText, labelPatterns) {
-  for (const labelPattern of labelPatterns) {
-    const labelMatch = fullText.match(labelPattern);
-    if (!labelMatch) continue;
-    const after = fullText.substring(
-      labelMatch.index + labelMatch[0].length,
-      labelMatch.index + labelMatch[0].length + 300
-    ).trim();
-    const lines = after.split('\n').map(l => l.trim()).filter(l => l.length > 1);
-    for (const line of lines.slice(0, 5)) {
-      // Ищем строку из латинских заглавных букв (имя в VIZ)
-      const latinMatch = line.match(/[A-Z]{2,}(?:[\s\-'][A-Z]{2,})*/);
-      if (latinMatch && !/^[A-Z]{2}$/.test(latinMatch[0])) { // исключаем двухбуквенные коды
-        return latinMatch[0].trim();
-      }
+function firstLine(str) {
+  if (!str) return null;
+  return str.split('\n').map(l => l.trim()).find(l => l.length > 1) || null;
+}
+
+// Извлекает имя из текста после метки
+// useCyrillic=true → ищем кириллицу, иначе латиницу
+function extractName(fullText, labelPattern, useCyrillic) {
+  const after = afterLabel(fullText, labelPattern, 300);
+  if (!after) return null;
+  const lines = after.split('\n').map(l => l.trim()).filter(l => l.length > 1);
+  for (const line of lines.slice(0, 5)) {
+    if (useCyrillic) {
+      const m = line.match(/[А-ЯЁа-яё]{2,}(?:[\s\-][А-ЯЁа-яё]{2,})*/);
+      if (m) return m[0].toUpperCase().trim();
+    } else {
+      const m = line.match(/[A-Z]{2,}(?:[\s\-'][A-Z]{2,})*/);
+      if (m && m[0].length > 2) return m[0].trim();
     }
   }
   return null;
 }
 
-function extractIssueDateFromText(fullText, knownDates) {
-  for (const labelPattern of ISSUE_DATE_LABEL_PATTERNS) {
-    const labelMatch = fullText.match(labelPattern);
-    if (labelMatch) {
-      const afterLabel = fullText.substring(
-        labelMatch.index + labelMatch[0].length,
-        labelMatch.index + labelMatch[0].length + 150
-      );
-      const dateMatch = afterLabel.match(DATE_RE);
-      if (dateMatch) return normalizeDate(dateMatch[0]);
-    }
-  }
-  // Запасной метод: исключаем известные даты
-  const allDates = [];
-  let m;
-  const re = new RegExp(DATE_RE_GLOBAL.source, 'g');
-  while ((m = re.exec(fullText)) !== null) {
-    allDates.push(`${m[1]}.${m[2]}.${m[3]}`);
-  }
-  const known = new Set(knownDates.filter(Boolean));
-  const candidates = [...new Set(allDates)].filter(d => !known.has(d));
-  return candidates[0] || null;
+function extractDate(fullText, labelPattern) {
+  const after = afterLabel(fullText, labelPattern, 150);
+  if (!after) return null;
+  return normalizeDate(after);
 }
 
-function extractIssuedByFromText(fullText) {
-  for (const labelPattern of ISSUED_BY_LABEL_PATTERNS) {
-    const labelMatch = fullText.match(labelPattern);
-    if (labelMatch) {
-      const afterLabel = fullText
-        .substring(labelMatch.index + labelMatch[0].length, labelMatch.index + labelMatch[0].length + 300)
-        .trim();
-      const line = firstTextLine(afterLabel);
-      if (line && line.length > 2) return line;
-    }
+function extractText(fullText, labelPattern) {
+  const after = afterLabel(fullText, labelPattern, 300);
+  return firstLine(after);
+}
+
+function tryPatterns(fullText, patterns, fn) {
+  for (const p of patterns) {
+    const result = fn(fullText, p);
+    if (result) return result;
   }
   return null;
 }
 
-function parseViz(fullText, mrzData) {
+// Определяет, содержит ли строка только цифры и буквы паспортного номера
+function looksLikePassportNo(str) {
+  return str && /^[A-Z]{1,2}\d{6,9}$/.test(str.replace(/\s/g, ''));
+}
+
+// Кросс-проверка фамилии: исправляет выпадение первой буквы в MRZ
+// (артефакт: UZB+B... → OCR сливает две B → UZBOLTAEV вместо UZBBOLTAEV)
+function reconcileSurname(mrzSurname, vizSurnameRaw, issuingCountry, translitFn) {
+  if (!vizSurnameRaw) return { value: mrzSurname, source: 'mrz' };
+
+  const vizTranslit = translitFn(vizSurnameRaw);
+
+  // Проверяем артефакт слияния: последняя буква кода страны = первая буква фамилии
+  const lastCountryChar = issuingCountry.slice(-1).toUpperCase();
+  if (
+    vizSurnameRaw.toUpperCase().startsWith(lastCountryChar) &&
+    mrzSurname.toUpperCase() === vizSurnameRaw.toUpperCase().slice(1)
+  ) {
+    return { value: vizTranslit, source: 'viz_fixed', original: mrzSurname };
+  }
+
+  // Если VIZ и MRZ совпадают — отлично
+  if (mrzSurname.toUpperCase() === vizSurnameRaw.toUpperCase()) {
+    return { value: vizTranslit, source: 'both' };
+  }
+
+  // В любом случае предпочитаем VIZ (нет артефакта слияния с кодом страны)
+  return { value: vizTranslit, source: 'viz', mrzValue: mrzSurname };
+}
+
+function parseViz(fullText, mrzData, translitFn) {
+  const country = (mrzData?.issuingCountry || '').toUpperCase();
+  const cfg = COUNTRY_CONFIG[country];
   const knownDates = mrzData ? [mrzData.birthDate, mrzData.expiryDate] : [];
+
+  // Фамилия
+  const surnameRaw = cfg
+    ? extractName(fullText, cfg.surname, cfg.cyrillic)
+    : tryPatterns(fullText, FALLBACK.surname, (t, p) => extractName(t, p, false));
+
+  // Имя + отчество
+  const givenNamesRaw = cfg
+    ? extractName(fullText, cfg.givenNames, cfg.cyrillic)
+    : tryPatterns(fullText, FALLBACK.givenNames, (t, p) => extractName(t, p, false));
+
+  // Дата выдачи
+  const issueDate = cfg
+    ? extractDate(fullText, cfg.doi) || tryPatterns(fullText, FALLBACK.doi, extractDate)
+    : tryPatterns(fullText, FALLBACK.doi, extractDate);
+
+  // Кем выдан
+  const issuedBy = cfg
+    ? extractText(fullText, cfg.authority) || tryPatterns(fullText, FALLBACK.authority, extractText)
+    : tryPatterns(fullText, FALLBACK.authority, extractText);
+
+  // Дата рождения из VIZ (для кросс-проверки)
+  const dobViz = cfg
+    ? extractDate(fullText, cfg.dob) || tryPatterns(fullText, FALLBACK.dob, extractDate)
+    : tryPatterns(fullText, FALLBACK.dob, extractDate);
+
+  // Кросс-проверка фамилии
+  const surnameResult = mrzData && surnameRaw
+    ? reconcileSurname(mrzData.surname, surnameRaw, country, translitFn)
+    : { value: surnameRaw ? translitFn(surnameRaw) : null, source: 'viz' };
+
+  // Кросс-проверка даты рождения
+  let dobSource = 'mrz';
+  if (dobViz && mrzData?.birthDate && dobViz !== mrzData.birthDate) {
+    dobSource = 'mismatch';
+    console.warn(`DOB mismatch: MRZ=${mrzData.birthDate} VIZ=${dobViz}`);
+  } else if (dobViz) {
+    dobSource = 'both';
+  }
+
+  // Запасной метод для даты выдачи: исключение известных дат
+  let issueDateFinal = issueDate;
+  if (!issueDateFinal) {
+    const allDates = [];
+    let m;
+    const re = new RegExp(DATE_RE_G.source, 'g');
+    while ((m = re.exec(fullText)) !== null) {
+      allDates.push(`${m[1]}.${m[2]}.${m[3]}`);
+    }
+    const known = new Set(knownDates.filter(Boolean));
+    const candidates = [...new Set(allDates)].filter(d => !known.has(d));
+    issueDateFinal = candidates[0] || null;
+  }
+
   return {
-    surnameRaw: extractLatinAfterLabel(fullText, SURNAME_LABEL_PATTERNS),
-    givenNamesRaw: extractLatinAfterLabel(fullText, GIVEN_NAMES_LABEL_PATTERNS),
-    issueDate: extractIssueDateFromText(fullText, knownDates),
-    issuedBy: extractIssuedByFromText(fullText),
+    surnameRaw,
+    surname: surnameResult,
+    givenNamesRaw,
+    givenNames: givenNamesRaw ? translitFn(givenNamesRaw) : null,
+    issueDate: issueDateFinal,
+    issuedBy,
+    dobViz,
+    dobSource,
+    country,
   };
 }
 

@@ -64,18 +64,14 @@ app.post("/api/recognize", upload.single("image"), async (req, res) => {
 
     console.log("=== OCR fullText ===\n" + fullText + "\n===================");
 
-    const viz = parseViz(fullText, mrz);
-
-    // Предпочитаем имя из VIZ (там нет артефакта слияния букв с кодом страны)
-    const vizSurname = viz.surnameRaw ? transliterateUzbekToRussian(viz.surnameRaw) : null;
-    const vizGivenNames = viz.givenNamesRaw ? transliterateUzbekToRussian(viz.givenNamesRaw) : null;
+    const viz = parseViz(fullText, mrz, transliterateUzbekToRussian);
 
     res.json({
       success: true,
       mrz,
       translit: {
-        surname: vizSurname || transliterateUzbekToRussian(mrz.surname),
-        givenNames: vizGivenNames || transliterateUzbekToRussian(mrz.givenNames),
+        surname: viz.surname?.value || transliterateUzbekToRussian(mrz.surname),
+        givenNames: viz.givenNames || transliterateUzbekToRussian(mrz.givenNames),
       },
       viz,
       fullText,
