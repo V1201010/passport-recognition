@@ -76,7 +76,7 @@ function extractNameAfterLabel(fullText, labelPattern, cyrillic) {
   const after = afterLabel(fullText, labelPattern, 300);
   if (!after) return null;
   const lines = after.split('\n').map(l => l.trim()).filter(l => l.length > 1);
-  for (const line of lines.slice(0, 5)) {
+  for (const line of lines.slice(0, 12)) {
     if (line.includes('/') || line.includes('|')) continue; // пропускаем строки-лейблы типа "ISMI / GIVEN NAMES"
     const name = cyrillic ? extractCyrillicName(line) : extractLatinName(line);
     if (name) return name;
@@ -139,7 +139,11 @@ function pickBetterSurname(mrzValue, vizValue, countryCode) {
 }
 
 function parseViz(fullText, mrzData, translitFn) {
-  const country = (mrzData?.issuingCountry || '').toUpperCase();
+  // issuingCountry из строки 1 MRZ может быть искажён OCR (Z→I и т.п.).
+  // Используем nationality из строки 2 как резерв — она надёжнее.
+  const iso1 = (mrzData?.issuingCountry || '').toUpperCase();
+  const iso2 = (mrzData?.nationality || '').toUpperCase();
+  const country = (COUNTRY_CONFIG[iso1] ? iso1 : iso2) || iso1;
   const cfg = COUNTRY_CONFIG[country] || null;
 
   // --- ФИО из VIZ (только для кросс-проверки с MRZ) ---
