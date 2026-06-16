@@ -42,18 +42,33 @@ function cleanNames(field) {
 
 // Находит две строки MRZ (по 44 символа, TD3) в произвольном тексте OCR.
 function findMrzLines(rawText) {
-  const candidates = rawText
-    .split("\n")
-    .map((line) => line.replace(/\s+/g, "").toUpperCase())
-    .filter((line) => /^[A-Z0-9<]{30,50}$/.test(line));
+  // Чистим каждую строку: оставляем только валидные MRZ-символы, убираем мусор OCR
+  const normalize = (line) =>
+    line.replace(/[^A-Z0-9<\s]/gi, "").replace(/\s+/g, "").toUpperCase();
 
-  for (let i = 0; i < candidates.length - 1; i += 1) {
-    const line1 = candidates[i].padEnd(44, "<").slice(0, 44);
-    const line2 = candidates[i + 1].padEnd(44, "<").slice(0, 44);
-    if (line1.startsWith("P") && /^[A-Z0-9<]{9}/.test(line2)) {
-      return [line1, line2];
+  const lines = rawText.split("\n").map(normalize);
+
+  // OCR иногда склеивает обе строки MRZ в одну ~88-символьную строку
+  const combined = lines.find(
+    (l) => l.length >= 80 && l.length <= 92 && l.startsWith("P") && /^[A-Z0-9<]+$/.test(l)
+  );
+  if (combined) {
+    return [combined.slice(0, 44).padEnd(44, "<"), combined.slice(44, 88).padEnd(44, "<")];
+  }
+
+  const candidates = lines.filter((l) => /^[A-Z0-9<]{30,50}$/.test(l));
+
+  // Ищем две строки MRZ с пропуском 0 или 1 строки между ними
+  for (let gap = 0; gap <= 1; gap++) {
+    for (let i = 0; i < candidates.length - 1 - gap; i++) {
+      const line1 = candidates[i].padEnd(44, "<").slice(0, 44);
+      const line2 = candidates[i + 1 + gap].padEnd(44, "<").slice(0, 44);
+      if (line1.startsWith("P") && /^[A-Z0-9<]{9}/.test(line2)) {
+        return [line1, line2];
+      }
     }
   }
+
   return null;
 }
 
