@@ -114,15 +114,9 @@ function extractAuthority(fullText, cfg) {
   return null;
 }
 
-// Сравниваем MRZ и VIZ: если совпали — берём MRZ, если нет — VIZ.
-// MRZ парсится точно по позициям (страна всегда 3 символа),
-// поэтому любое расхождение означает OCR-артефакт в MRZ.
+// MRZ — первичный источник для ФИО. VIZ — только резерв если MRZ пустой.
 function pickBetter(mrzValue, vizValue) {
-  if (!vizValue) return mrzValue;
-  if (!mrzValue) return vizValue;
-  return mrzValue.toUpperCase().trim() === vizValue.toUpperCase().trim()
-    ? mrzValue
-    : vizValue;
+  return mrzValue || vizValue;
 }
 
 function parseViz(fullText, mrzData, translitFn) {
