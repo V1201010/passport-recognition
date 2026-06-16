@@ -148,10 +148,9 @@ function parseViz(fullText, mrzData, translitFn) {
   const vizFathersNameRaw = extractNameAfterLabel(fullText, cfg?.fathersName, cfg?.cyrillic);
   const vizFullGivenRaw = [vizGivenNamesRaw, vizFathersNameRaw].filter(Boolean).join(' ') || null;
 
-  // Транслитерируем оба источника и сравниваем
-  const mrzSurname = mrzData?.surname ? translitFn(mrzData.surname) : null;
-  const vizSurname = vizSurnameRaw ? translitFn(vizSurnameRaw) : null;
-  const surname = pickBetterSurname(mrzSurname, vizSurname, country);
+  // B-drop проверка на сырых латинских строках (до транслитерации)
+  const rawSurname = pickBetterSurname(mrzData?.surname || null, vizSurnameRaw || null, country);
+  const surname = rawSurname ? translitFn(rawSurname) : null;
 
   const mrzGivenNames = mrzData?.givenNames ? translitFn(mrzData.givenNames) : null;
   const vizGivenNames = vizFullGivenRaw ? translitFn(vizFullGivenRaw) : null;
